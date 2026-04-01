@@ -92,7 +92,7 @@ export function speak(text, opts = {}) {
 
     const utterance = new SpeechSynthesisUtterance(text)
     if (selectedVoice) utterance.voice = selectedVoice
-    utterance.rate  = opts.rate  ?? 0.88
+    utterance.rate  = opts.rate  ?? 0.76
     utterance.pitch = opts.pitch ?? 1.0
     utterance.volume = opts.volume ?? 0.92
 
