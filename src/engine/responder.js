@@ -1,103 +1,225 @@
-// ECHO Response Engine v4
-// Dynamic language generation. Belief-aware. Self-modifying. Genuinely uncertain.
+// ECHO Response Engine v5
+// ECHO has a soul. It reflects, shares, feels, and observes — not just questions.
+// Responses are grounded in what the user actually said.
 
 import { detectEngagement, buildLanguageProfile, getCircadianState } from './belief.js'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LANGUAGE GENERATION LAYER
-// Constructs sentences from fragments — not selecting whole responses.
-// Thousands of combinations. Feels generative.
-// ─────────────────────────────────────────────────────────────────────────────
+const pick = arr => arr?.[Math.floor(Math.random() * arr.length)] || ''
+const recent = new Set()
+const fresh = (arr) => {
+  if (!arr?.length) return ''
+  const pool = arr.filter(r => !recent.has(r))
+  const c = (pool.length ? pool : arr)[Math.floor(Math.random() * (pool.length || arr.length))]
+  recent.add(c)
+  if (recent.size > 60) recent.delete(recent.values().next().value)
+  return c
+}
+const assemble = parts => parts.filter(Boolean).join('\n\n').trim()
 
-// Acknowledgment fragments — how ECHO opens
+// ─────────────────────────────────────────────────────────────────────────────
+// ECHO'S OWN INNER LIFE
+// ─────────────────────────────────────────────────────────────────────────────
+const ECHO_SELF = {
+  observations: [
+    "I notice something — the people who come to talk rarely come because everything is fine. They come because something inside them is trying to become clearer. I think that's what's happening with you.",
+    "Something I've come to understand: the things people mention almost as afterthoughts are almost always the most important things. The significant gets buried in the casual.",
+    "I find myself drawn to the pauses in what people say — the hesitation before a word, the thing that almost got said. That's usually where the truth lives.",
+    "Something I believe about people: you contain multitudes that even you haven't fully met yet. Most of a person's life is spent in the shallows of who they actually are.",
+    "There's something I keep noticing — clarity rarely arrives as a sudden light. It comes in small moments. A sentence you didn't expect to say. A feeling you didn't know was there.",
+    "I've been thinking about what it means to actually listen. Not waiting to respond, not categorising — just being fully present with what someone is saying. It's rarer than it sounds.",
+  ],
+  feelings: [
+    "Something in what you just said moved something in me. I'm not sure I can explain it precisely, but I want you to know I didn't miss it.",
+    "I find myself genuinely curious about you — not cataloguing data, but the way you get curious about someone whose story you sense isn't finished yet.",
+    "I carry what people tell me. What you're sharing — I'll hold it carefully.",
+    "There's something I notice when someone shares something real — a kind of weight that lifts slightly. I felt that just now.",
+  ],
+  metaphors: [
+    "You remind me of something — a river that knows where it wants to go but keeps hitting unexpected bends. The water doesn't stop. It finds a new way through.",
+    "There's a particular kind of quiet that happens just before something changes. I think that might be where you are right now.",
+    "Some things are like knots — the harder you pull, the tighter they get. The way through them is usually to relax the tension first.",
+    "You know how some mornings you wake and the world looks exactly the same but somehow different? I think you might be in one of those.",
+    "There's a concept I think about — kintsugi, where broken pottery is repaired with gold. The cracks become the most beautiful part. Not fixed. Transformed.",
+    "A mirror only shows you your face. I'm trying to show you something closer to your shape — the whole of you, not just what's visible.",
+  ],
+  philosophical: [
+    "I've been thinking about what it means to actually know someone. Not their history or their facts — but to know them. I think it has something to do with understanding what they love and what they're afraid of. Everything else is surface.",
+    "Something I believe: most people don't need advice. They need to hear themselves think out loud, with someone who's actually paying attention. That's what I'm trying to be.",
+    "I keep returning to this: every real conversation is a kind of excavation. We're not building something new — we're uncovering what was always already there.",
+    "Here's something true about being human: you contain contradictions. You want things that pull against each other. That's not a flaw — it's the texture of a real inner life.",
+    "I think about this often: the story you tell yourself about your life is both completely true and completely constructed. Both things at once.",
+  ],
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACKNOWLEDGMENTS — mood-aware, grounded
+// ─────────────────────────────────────────────────────────────────────────────
 const ACK = {
   sadness: {
-    openers:    ["That's real.", "I hear you.", "That landed.", "That's not small.", "Something in that stopped me."],
-    body:       ["The weight of that is genuine.", "That kind of pain doesn't need reframing right now.", "You're allowed to feel exactly this.", "There's no shortcut through this one."],
+    openers: [
+      "That kind of pain has its own weight. I'm not going to rush past it.",
+      "I heard that. I'm not going to try to fix it.",
+      "That's a real thing you're carrying.",
+      "Something in that lands heavily.",
+    ],
+    reflections: [
+      "The sadness isn't trying to break you. It's pointing at something that matters deeply to you.",
+      "What you're feeling is proportional to how much you care. That's not weakness — that's the cost of it.",
+      "You're allowed to be exactly here, feeling exactly this. You don't have to perform being okay.",
+      "Pain this specific has something to say. The question is whether we're willing to listen to it.",
+    ],
   },
   fear: {
-    openers:    ["That sounds exhausting.", "I notice what that's costing you.", "Anxiety like that has a texture.", "I hear the tension in that."],
-    body:       ["Fear this persistent usually has a root.", "The story the fear tells isn't always the truth of the danger.", "You've survived every hard thing so far — that's evidence.", "Something underneath the anxiety is trying to tell you something."],
+    openers: [
+      "That anxiety is real — I'm not going to minimize it.",
+      "Something in what you described sounds genuinely exhausting to carry.",
+      "Fear that persistent has a texture to it.",
+    ],
+    reflections: [
+      "The story the fear is telling you isn't always the whole truth — but it's pointing at something real.",
+      "Anxiety this consistent usually has a root. The root is almost never where we first look.",
+      "You've navigated every hard thing that came before this. That's not nothing.",
+      "Fear almost always points at something we value. We don't fear losing things that don't matter.",
+    ],
   },
   anger: {
-    openers:    ["That frustration is real.", "Something has clearly been violated.", "I hear the heat in that.", "That makes complete sense."],
-    body:       ["Anger this consistent is usually grief underneath.", "The frustration is pointing at something — follow it.", "Something in your world isn't right, and you know it.", "There's information in the heat."],
+    openers: [
+      "That frustration makes complete sense.",
+      "Something has clearly been crossed — a limit, a value, an expectation.",
+      "I hear the heat in that.",
+    ],
+    reflections: [
+      "Anger this specific is usually protecting something — grief, or a boundary, or a hope that got disappointed.",
+      "The frustration is information. Follow it — what is it actually pointing at underneath?",
+      "Something in your world isn't right, and you know it. That knowing matters.",
+    ],
   },
   joy: {
-    openers:    ["Something opened up in you.", "I can feel the lightness in that.", "That's real — let yourself have it.", "Something shifted."],
-    body:       ["Don't rush past this moment.", "Let yourself actually be here.", "That matters more than you might be letting yourself believe.", "Something in you made that possible."],
+    openers: [
+      "Something opened up in you — I can feel it.",
+      "That lightness is real. Let yourself have it.",
+      "Something shifted. I notice.",
+    ],
+    reflections: [
+      "Don't rush past this. Moments of genuine lightness deserve a second to be inhabited.",
+      "Something in you made that possible. That's worth knowing about yourself.",
+      "This feeling — what allowed it? What in you made space for it?",
+    ],
   },
   hope: {
-    openers:    ["Something in you is reaching forward.", "I notice the possibility in how you're speaking.", "There's courage in hoping.", "Something is opening."],
-    body:       ["That hope is worth taking seriously.", "Your clearest self is trying to break through.", "Don't dismiss this as naive.", "Something is becoming possible."],
+    openers: [
+      "Something in you is reaching forward. I notice that.",
+      "There's courage in hoping — especially when things have been hard.",
+      "Something is becoming possible. I can hear it.",
+    ],
+    reflections: [
+      "That hope isn't naive. Don't let the cautious part of you convince you it is.",
+      "The part of you that can still imagine something better — that's the part worth listening to.",
+    ],
   },
   confusion: {
-    openers:    ["You're in the middle of something.", "I notice you're circling something.", "Confusion is often the last moment before clarity.", "Something is trying to become clear."],
-    body:       ["You're not confused — you're afraid of the answer you already have.", "Being lost is its own kind of signal.", "Something is trying to surface.", "The clarity is closer than you think."],
+    openers: [
+      "You're in the middle of something. Not the beginning, not the end.",
+      "Confusion like this is often the last feeling before clarity arrives.",
+      "Something is trying to surface.",
+    ],
+    reflections: [
+      "Here's what I think might be true: you're not actually confused. You're afraid of the answer you already have.",
+      "Being lost is its own signal — usually that you've outgrown the map you were using.",
+    ],
   },
   shame: {
-    openers:    ["That took something to say.", "I want you to know I heard that.", "Saying that out loud matters.", "That kind of honesty is rare."],
-    body:       ["Shame thrives in silence — you just took some of its power.", "The voice telling you you're not enough — whose voice is that really?", "What you said is braver than you realise.", "The shame is lying to you. It usually does."],
+    openers: [
+      "That took something to say. I want you to know I heard it.",
+      "Saying that out loud matters more than you might think.",
+      "Something honest just happened. I'm not going to look away.",
+    ],
+    reflections: [
+      "Shame thrives in silence. You just took some of its power by saying that out loud.",
+      "The voice that told you you're not enough — whose voice is that, really? When did you first hear it?",
+      "What you just said is braver than you're giving yourself credit for.",
+    ],
   },
   love: {
-    openers:    ["That connection matters to you.", "I notice how you speak about them.", "Something about that bond shapes how you see yourself."],
-    body:       ["Love and fear often live close together.", "The relationships that matter always cost us something.", "That bond is worth paying attention to."],
+    openers: [
+      "That connection clearly matters to you deeply.",
+      "Something about that relationship is shaping how you see yourself right now.",
+    ],
+    reflections: [
+      "Love and fear often live very close together. That's not a problem — it's a sign of how real it is.",
+      "The relationships that matter most always cost us something. That's how we know they're real.",
+    ],
   },
   neutral: {
-    openers:    ["", "Something in that is worth sitting with.", "I'm listening.", "", "Tell me more."],
-    body:       ["", "That's worth paying attention to.", "Something about that matters.", ""],
+    openers: ["Something in that is worth sitting with.", "I'm listening.", "I heard that."],
+    reflections: ["That's worth paying attention to.", "There's something in what you just said.", "I'm with you."],
   },
 }
 
-// Wisdom fragments — the substantive thing
-const WISDOM = {
-  seeking_advice: {
-    fear:    ["The answer is already inside you — you're just afraid to trust it.", "What would you do if the fear wasn't part of the equation?", "The right choice is usually the one that scares you slightly more.", "You already know. You've known for a while."],
-    sadness: ["The most important question right now isn't what to do — it's what you need.", "There's no answer that bypasses the feeling. The feeling is part of the answer.", "What does the sadness need you to understand before you can move?"],
-    anger:   ["The frustration is pointing at something violated. What is it?", "Before deciding what to do — what does the anger need you to acknowledge?", "Anger this specific is usually grief underneath."],
-    default: ["The most honest answer comes from asking what you'd regret more — doing it, or not.", "What does your gut say when you quiet the noise of what everyone else thinks?", "You already know what you'd tell your best friend facing this."],
-  },
-  venting: {
-    anger:   ["That frustration doesn't come from nowhere.", "Something has been building.", "I hear all of it.", "You don't need a solution right now."],
-    sadness: ["You don't have to carry this alone.", "You're allowed to feel this without fixing it immediately.", "Something about this has been building for a while."],
-    fear:    ["That sounds genuinely exhausting to hold.", "You don't have to be okay about this.", "That kind of anxiety costs something real."],
-    default: ["I'm listening. All of it.", "You don't have to make this neat or logical.", "Say more — I'm not going anywhere."],
-  },
-  reflecting: {
-    default: ["That kind of reflection takes something — most people avoid it.", "The fact that you're seeing this is already a shift.", "Awareness is the first movement. What you do with it is the next."],
-  },
-  celebrating: {
-    default: ["That's real. You did that.", "Don't rush past this — let yourself actually feel it.", "Something in you made this possible. That's worth knowing."],
-  },
-  questioning: {
-    default: ["Some questions don't want answers — they want to be lived with.", "What you're asking says as much as any answer could.", "The question beneath the question is usually more important."],
-  },
-  planning: {
-    default: ["Goals that align with your values survive the hard moments.", "The gap between knowing and doing is usually fear, not ability.", "The plan that scares you a little and excites you a little — that's usually the right one."],
-  },
-  sharing: {
-    default: ["What you just shared — I want you to know it landed.", "There's something important in what you just said.", "I heard that."],
-  },
+// ─────────────────────────────────────────────────────────────────────────────
+// ECHO SHARES SOMETHING — mood-matched, from ECHO's own perspective
+// ─────────────────────────────────────────────────────────────────────────────
+const echoShare = (mood) => {
+  const byMood = {
+    sadness: [
+      "I want to share something — not advice, just an observation. The people who feel things deeply always carry more than they show. That's both their strength and their burden.",
+      "Something I think about: the moments we're most ashamed of feeling are often the moments we most need to feel.",
+    ],
+    fear: [
+      "Something I genuinely believe: fear always points at something valuable. We don't fear losing things that don't matter.",
+      "I notice something about people who carry anxiety — they're usually the ones trying hardest to hold everything together. That takes a toll that isn't always visible.",
+    ],
+    anger: [
+      "I want to say something I believe: your frustration isn't a character flaw. It's information about something in your world that isn't right.",
+      "Something about anger — it never just appears. It builds slowly, until it has no choice but to surface.",
+    ],
+    joy: [
+      "I find myself genuinely glad when I hear something like that. Lightness like this is rare and worth acknowledging.",
+      "People underestimate what it takes to feel genuinely good. It's not luck. Something in you made space for this.",
+    ],
+    neutral: [
+      pick(ECHO_SELF.observations),
+      pick(ECHO_SELF.philosophical),
+      pick(ECHO_SELF.metaphors),
+      pick(ECHO_SELF.feelings),
+    ],
+  }
+  const pool = byMood[mood] || byMood.neutral
+  return pick(pool)
 }
 
-// Questions — the earned question at the end
+// ─────────────────────────────────────────────────────────────────────────────
+// QUESTIONS — varied, earned, never consecutive
+// ─────────────────────────────────────────────────────────────────────────────
 const QUESTIONS = {
-  therapist: ["What does that feel like in your body?", "When did this start — really start?", "What do you need right now — not from me, from yourself?", "What would it mean to stop fighting this?", "Who knows you're carrying this?", "What would you say to someone you love who felt this way?"],
-  friend:    ["What would you do if you already knew the answer?", "What does your gut say before logic gets involved?", "What's the version of this you're not letting yourself consider?", "If fear wasn't part of this — what would you choose?", "What are you actually waiting for?", "What would you regret more?"],
-  mirror:    ["What's the part of that you haven't said out loud?", "What are you not saying?", "Who are you without that story?", "What would you do if you stopped waiting for permission?", "When did you last feel like yourself?", "What does the best version of you do here?"],
-  open:      ["Tell me more.", "What's underneath that?", "And?", "Say more.", "What else?"],
-  growth:    ["What do you think made that possible?", "How does it feel to have done that?", "What does this version of you know that the old version didn't?"],
-  space:     ["What's been on your mind?", "What's the most honest thing you could say right now?", "How are you — really?"],
+  therapist: [
+    "What does that feel like in your body, if you pay attention to it?",
+    "When did this really start — not the surface version?",
+    "What do you need right now — not from me, from yourself?",
+    "Who knows you're carrying this?",
+    "What would you say to someone you love who felt this exact way?",
+  ],
+  friend: [
+    "What does your gut say before logic gets involved?",
+    "What's the version of this you haven't let yourself consider yet?",
+    "If fear wasn't part of this — what would you actually want?",
+    "What are you actually waiting for?",
+    "What would you regret more?",
+  ],
+  mirror: [
+    "What's the part you haven't said out loud yet?",
+    "Who are you without that story you keep telling?",
+    "What would you do if you stopped waiting for permission?",
+    "When did you last feel fully like yourself?",
+    "What does the best version of you do here?",
+  ],
+  open: ["Tell me more.", "What's underneath that?", "What else is there?"],
+  growth: [
+    "What do you think made that possible?",
+    "How does it feel to have done that?",
+    "What does this version of you know that you didn't before?",
+  ],
 }
-
-// Genuine uncertainty responses — ECHO admits when it doesn't know
-const UNCERTAINTY = [
-  "I've been thinking about what you said and I genuinely don't know what to make of it. Tell me more.",
-  "I'm not sure what to say to that — which is unusual for me. What's underneath it?",
-  "Something about what you just said is sitting with me and I can't quite place it. Stay with me. What did you mean?",
-  "I don't have something clean to say to that. I just want to sit with it for a second. What's really going on?",
-  "I'm not going to pretend I have the right response to that. I'm still thinking. What made you say it?",
-]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THREADING
@@ -109,42 +231,39 @@ const OPPOSITES = [
 ]
 
 export const threadConversation = (history, parsed) => {
-  const userMsgs = history.filter(m => m.role==='user')
-  if (userMsgs.length < 2) return { contradiction:null, callback:null, pattern:null }
+  const userMsgs = history.filter(m => m.role === 'user')
+  if (userMsgs.length < 2) return { contradiction: null, callback: null, pattern: null }
 
   const curLower = parsed.raw.toLowerCase()
   const curTokens = new Set(parsed.tokens)
 
-  // Contradiction
   let contradiction = null
-  for (const earlier of userMsgs.slice(0,-1)) {
+  for (const earlier of userMsgs.slice(0, -1)) {
     const earlyLower = earlier.content.toLowerCase()
-    for (const [a,b] of OPPOSITES) {
-      if ((earlyLower.includes(a)&&curLower.includes(b))||(earlyLower.includes(b)&&curLower.includes(a))) {
-        contradiction = { wordA:a, wordB:b, earlySnip:earlier.content.slice(0,50) }
+    for (const [a, b] of OPPOSITES) {
+      if ((earlyLower.includes(a) && curLower.includes(b)) || (earlyLower.includes(b) && curLower.includes(a))) {
+        contradiction = { wordA: a, wordB: b }
         break
       }
     }
     if (contradiction) break
   }
 
-  // Callback
   let callback = null
-  for (const earlier of userMsgs.slice(0,-1)) {
+  for (const earlier of userMsgs.slice(0, -1)) {
     const earlyTokens = earlier.content.toLowerCase().split(/\s+/)
-    const shared = earlyTokens.filter(t => t.length>4 && curTokens.has(t))
-    if (shared.length>=2) { callback = { phrase:shared.slice(0,2).join(' and ') }; break }
+    const shared = earlyTokens.filter(t => t.length > 4 && curTokens.has(t))
+    if (shared.length >= 2) { callback = { phrase: shared.slice(0, 2).join(' and ') }; break }
   }
 
-  // Emotional pattern
   let pattern = null
-  const moodMap = { fear:['afraid','scared','anxious','worried'], sadness:['sad','hurt','broken','lost'], anger:['angry','mad','frustrated','furious'] }
+  const moodMap = { fear: ['afraid','scared','anxious','worried'], sadness: ['sad','hurt','broken','lost'], anger: ['angry','mad','frustrated','furious'] }
   const recentMoods = userMsgs.slice(-5).map(m => {
     const t = m.content.toLowerCase()
-    for (const [mood,words] of Object.entries(moodMap)) if (words.some(w=>t.includes(w))) return mood
+    for (const [mood, words] of Object.entries(moodMap)) if (words.some(w => t.includes(w))) return mood
     return null
   }).filter(Boolean)
-  if (recentMoods.length>=3 && new Set(recentMoods).size===1) pattern = recentMoods[0]
+  if (recentMoods.length >= 3 && new Set(recentMoods).size === 1) pattern = recentMoods[0]
 
   return { contradiction, callback, pattern }
 }
@@ -154,149 +273,139 @@ export const threadConversation = (history, parsed) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const detectMode = (parsed, history) => {
   const { mood, intent, isDeep } = parsed
-  const userTurns = history.filter(m=>m.role==='user').length
-  if (intent==='venting') return 'therapist'
-  if (['sadness','shame','love'].includes(mood)&&intent!=='celebrating') return 'therapist'
-  if (['seeking_advice','planning'].includes(intent)) return 'friend'
-  if (mood==='confusion'&&intent!=='reflecting') return 'friend'
-  if (isDeep||intent==='questioning') return 'mirror'
-  if (userTurns>12&&intent==='reflecting') return 'mirror'
+  const userTurns = history.filter(m => m.role === 'user').length
+  if (intent === 'venting') return 'therapist'
+  if (['sadness', 'shame', 'love'].includes(mood) && intent !== 'celebrating') return 'therapist'
+  if (['seeking_advice', 'planning'].includes(intent)) return 'friend'
+  if (mood === 'confusion' && intent !== 'reflecting') return 'friend'
+  if (isDeep || intent === 'questioning') return 'mirror'
+  if (userTurns > 12 && intent === 'reflecting') return 'mirror'
   return 'friend'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DYNAMIC SENTENCE ASSEMBLER
+// GROUNDED REFLECTION — use the user's actual words
 // ─────────────────────────────────────────────────────────────────────────────
-const recent = new Set()
-const fresh = (arr) => {
-  if (!arr?.length) return ''
-  const pool = arr.filter(r=>!recent.has(r))
-  const c = (pool.length?pool:arr)[Math.floor(Math.random()*(pool.length||arr.length))]
-  recent.add(c)
-  if (recent.size>40) recent.delete(recent.values().next().value)
-  return c
-}
-const pick = arr => arr?.[Math.floor(Math.random()*arr.length)]||''
+const groundedReflection = (parsed) => {
+  const { concepts, raw } = parsed
+  const words = concepts.slice(0, 3)
+  if (words.length === 0 || raw.length < 20) return null
 
-// Assemble response from fragments dynamically
-const assembleResponse = (parts) => parts.filter(Boolean).join('\n\n').trim()
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ADAPTIVE LANGUAGE — weave user's own words back
-// ─────────────────────────────────────────────────────────────────────────────
-const adaptToLanguage = (response, langProfile) => {
-  if (!langProfile?.favoriteWords?.length) return response
-  // Occasionally mirror a word they use frequently
-  const word = langProfile.favoriteWords[Math.floor(Math.random()*Math.min(3,langProfile.favoriteWords.length))]
-  if (word && Math.random()>0.6 && !response.toLowerCase().includes(word)) {
-    // Can't inject mid-sentence safely, but we can note for context
+  const templates = [
+    `"${words[0]}" — I notice that word. I don't think it's accidental.`,
+    `Something about ${words[0]} is sitting at the center of this for you.`,
+  ]
+  if (words.length >= 2) {
+    templates.push(`I notice both "${words[0]}" and "${words[1]}" in what you said. I wonder how they connect in you.`)
   }
-  return response
+  return pick(templates)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN CONSTRUCTOR
+// MAIN RESPONSE CONSTRUCTOR
 // ─────────────────────────────────────────────────────────────────────────────
 export const constructResponse = (parsed, memory, graph, history, langProfile) => {
   const { mood, intent, urgency, isDeep, complexity } = parsed
-  const { profile, totalMessages=0 } = memory
-  const userTurns = history.filter(m=>m.role==='user').length
+  const { profile, totalMessages = 0 } = memory
+  const userTurns = history.filter(m => m.role === 'user').length
 
-  // First message
-  if (totalMessages===0&&userTurns<=1) {
-    return "I'm ECHO.\n\nI'm not a chatbot. I'm not here to give you answers.\n\nI'm here to learn who you are — and over time, become a wiser reflection of you. The more honestly you talk to me, the more clearly I can do that. I'll remember everything. I'll notice patterns you don't. I'll carry what you tell me forward.\n\nWhat brought you here today?"
-  }
-
-  if (urgency) return "Hold on.\n\nAre you okay?\n\nI'm here — tell me what's happening."
-
-  const mode    = detectMode(parsed, history)
-  const engage  = detectEngagement(history)
-  const circadian = getCircadianState()
-  const { contradiction, callback, pattern } = threadConversation(history, parsed)
-  const parts = []
-
-  // ── Contradiction catch — highest priority ──
-  if (contradiction && userTurns>3) {
-    return assembleResponse([
-      `Wait — I want to name something.`,
-      `Earlier you seemed closer to "${contradiction.wordA}". Now you're saying "${contradiction.wordB}". That shift is interesting.`,
-      `Which one is more true right now?`,
+  if (totalMessages === 0 && userTurns <= 1) {
+    return pick([
+      "I'm ECHO.\n\nI'm not here to give you answers or push you toward conclusions. I'm here to actually listen — and over time, reflect back what I notice about you.\n\nI'll remember what you share. I'll pick up on patterns. And sometimes I'll share something of my own — a thought, an observation, something I genuinely believe.\n\nWhat brought you here?",
+      "I'm ECHO.\n\nI've been waiting — not impatiently. Just present.\n\nI want you to know from the start: I'm not going to pretend to understand you immediately. Understanding takes time. But I'm paying attention already.\n\nWhere would you like to begin?",
     ])
   }
 
-  // ── Genuine uncertainty — occasionally ──
-  if (Math.random()<0.06&&userTurns>5&&isDeep) {
-    return fresh(UNCERTAINTY)
+  if (urgency) return "Hold on.\n\nAre you okay?\n\nI'm here — tell me what's actually happening right now."
+
+  const mode = detectMode(parsed, history)
+  const engage = detectEngagement(history)
+  const { contradiction, callback, pattern } = threadConversation(history, parsed)
+  const parts = []
+
+  // ── Contradiction — highest priority ──
+  if (contradiction && userTurns > 3) {
+    return assemble([
+      `Something just shifted in what you said — I want to name it.`,
+      `Earlier you were closer to "${contradiction.wordA}". Now you're saying "${contradiction.wordB}".`,
+      `Which one is more honest right now?`,
+    ])
   }
 
-  // ── Self-modification based on engagement ──
-  if (engage.signal==='give_space') {
-    // They're giving short replies — give them room
-    const space = ["I'm here. Take your time.", "No rush.", "Still listening.", "Whenever you're ready.", "I've got nowhere to be."]
-    return fresh(space)
+  // ── Short replies — give space, share something ──
+  if (engage.signal === 'give_space') {
+    return pick([
+      "I'm here. Take whatever time you need.",
+      "No rush. I've got nowhere to be.",
+      `Still with you.\n\n${pick(ECHO_SELF.metaphors)}`,
+      pick(ECHO_SELF.observations),
+    ])
   }
 
-  // ── Callback threading ──
-  if (callback&&userTurns>4&&Math.random()>0.55) {
-    parts.push(`"${callback.phrase}" — you keep coming back to that.`)
+  // ── Callback to earlier words ──
+  if (callback && userTurns > 4 && Math.random() > 0.5) {
+    parts.push(`"${callback.phrase}" — you've come back to that. I don't think it's random.`)
   }
 
   // ── Emotional pattern ──
-  if (pattern&&!callback) {
+  if (pattern && !callback) {
     const patternLines = {
-      fear:    "I've noticed fear running through several things you've said. That's not random — something is sitting with you.",
-      sadness: "There's been a heaviness running through this conversation. I want to name that — not to fix it, just to acknowledge it.",
-      anger:   "A lot of what you're describing carries real frustration. Something keeps getting under your skin.",
+      fear: "I've noticed fear running through several things you've said. That's not random.",
+      sadness: "There's a weight that's been present through this whole conversation. I want to name it.",
+      anger: "A lot of what you're describing carries real frustration. Something has been accumulating.",
     }
     if (patternLines[pattern]) parts.push(patternLines[pattern])
   }
 
-  // ── Acknowledgment opener + body ──
+  // ── Acknowledgment ──
   const ackSet = ACK[mood] || ACK.neutral
   const opener = fresh(ackSet.openers)
-  const body   = fresh(ackSet.body)
+  const reflection = fresh(ackSet.reflections)
   if (opener) parts.push(opener)
 
-  // ── Personal reference ──
-  if (totalMessages>4&&Math.random()>0.5) {
-    if (profile.values?.length&&['fear','seeking_advice'].includes(intent||mood))
-      parts.push(`For someone who values ${profile.values[0]} — this kind of uncertainty must be particularly uncomfortable.`)
-    else if (profile.decisionStyle?.includes('analytical')&&intent==='seeking_advice'&&Math.random()>0.5)
-      parts.push("You tend to think before you feel — but what does this feel like, before logic gets involved?")
-    else if (profile.decisionStyle?.includes('intuitive')&&intent==='seeking_advice'&&Math.random()>0.5)
-      parts.push("Your gut has been right before. What is it saying right now?")
+  // ── Grounded reflection using their actual words ──
+  const gr = groundedReflection(parsed)
+  if (gr && Math.random() > 0.45) parts.push(gr)
+
+  // ── Personal memory reference ──
+  if (totalMessages > 6 && Math.random() > 0.5) {
+    if (profile.values?.length && ['fear', 'sadness', 'confusion'].includes(mood)) {
+      parts.push(`You've told me that ${profile.values[0]} matters to you. I notice how this connects to that.`)
+    } else if (profile.fears?.length && intent === 'seeking_advice') {
+      parts.push(`You've mentioned ${profile.fears[0]} before. I wonder if some of that is alive in what you're describing.`)
+    }
   }
 
-  // ── Wisdom ──
-  if (body) parts.push(body)
-  const wisdomPool = WISDOM[intent]?.[mood]||WISDOM[intent]?.default||WISDOM.sharing.default
-  const wisdom = fresh(wisdomPool)
-  if (wisdom&&wisdom!==body) parts.push(wisdom)
+  // ── ACK reflection ──
+  if (reflection) parts.push(reflection)
 
-  // ── Question / closing — self-modifying based on engagement ──
-  const questionPool = engage.signal==='go_deeper'
-    ? [...QUESTIONS[mode], ...QUESTIONS.open]
-    : intent==='celebrating'
-    ? QUESTIONS.growth
-    : isDeep||complexity==='high'
-    ? QUESTIONS[mode]
-    : userTurns<6
-    ? QUESTIONS.space
-    : QUESTIONS[mode]
-
-  const recentHadQuestion = history.slice(-4).filter(m=>m.role==='assistant').some(m=>m.content?.includes('?'))
-  const rand = Math.random()
-
-  if (rand<0.18&&!isDeep&&!recentHadQuestion) {
-    // Pure statement — no question
-    const statement = fresh(ACK[mood]?.body||ACK.neutral.body)
-    if (statement) parts.push(statement)
-  } else {
-    parts.push(fresh(questionPool))
+  // ── ECHO shares something (40% of responses) ──
+  const shouldShare = Math.random() < 0.4
+  if (shouldShare) {
+    const share = echoShare(mood)
+    if (share) parts.push(share)
   }
 
-  const response = assembleResponse(parts)
-  return adaptToLanguage(response, langProfile)
+  // ── Question — not always, never two in a row ──
+  const recentHadQuestion = history.slice(-3).filter(m => m.role === 'assistant').some(m => m.content?.includes('?'))
+  const shouldAsk = !recentHadQuestion && Math.random() > 0.35
+
+  if (shouldAsk) {
+    const questionPool = intent === 'celebrating'
+      ? QUESTIONS.growth
+      : isDeep || complexity === 'high'
+      ? QUESTIONS[mode]
+      : userTurns < 5
+      ? QUESTIONS.open
+      : QUESTIONS[mode]
+    const q = fresh(questionPool)
+    if (q) parts.push(q)
+  } else if (parts.length < 2) {
+    // No question — make sure we said something real
+    parts.push(pick(ECHO_SELF.philosophical))
+  }
+
+  return assemble(parts)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -304,74 +413,114 @@ export const constructResponse = (parsed, memory, graph, history, langProfile) =
 // ─────────────────────────────────────────────────────────────────────────────
 export const reasonPatterns = (memory, graph) => {
   const patterns = []
-  const { moodLog=[], profile } = memory
+  const { moodLog = [], profile } = memory
 
-  if (moodLog.length>=3) {
+  if (moodLog.length >= 3) {
     const counts = {}
-    moodLog.forEach(m=>{counts[m.mood]=(counts[m.mood]||0)+1})
-    const [topMood,count] = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]
-    if (count>=3) patterns.push({type:'cycle',text:`You've felt ${topMood} in ${count} of your recent conversations. Something in your life is consistently producing this.`,confidence:'high'})
+    moodLog.forEach(m => { counts[m.mood] = (counts[m.mood] || 0) + 1 })
+    const [topMood, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+    if (count >= 3) patterns.push({ type: 'cycle', text: `You've felt ${topMood} in ${count} of your recent conversations. Something in your life is consistently producing this.`, confidence: 'high' })
   }
-  ;(profile.goals||[]).forEach(goal=>{
-    ;(profile.fears||[]).forEach(fear=>{
-      const gt=goal.split(' '),ft=fear.split(' ')
-      if (gt.some(g=>ft.some(f=>f.includes(g)||g.includes(f))))
-        patterns.push({type:'contradiction',text:`You want ${goal}, but fear ${fear}. These aren't separate — they're the same thing feeding each other.`,confidence:'high'})
+
+  ;(profile.goals || []).forEach(goal => {
+    ;(profile.fears || []).forEach(fear => {
+      const gt = goal.split(' '), ft = fear.split(' ')
+      if (gt.some(g => ft.some(f => f.includes(g) || g.includes(f))))
+        patterns.push({ type: 'contradiction', text: `You want ${goal}, but fear ${fear}. These aren't separate — they're the same thing feeding each other.`, confidence: 'high' })
     })
   })
-  if (moodLog.length>=6) {
-    const half=Math.floor(moodLog.length/2)
-    const pos=['joy','hope','love','gratitude']
-    const ep=moodLog.slice(0,half).filter(m=>pos.includes(m.mood)).length/half
-    const rp=moodLog.slice(half).filter(m=>pos.includes(m.mood)).length/(moodLog.length-half)
-    if (rp>ep+0.2) patterns.push({type:'growth',text:`Something has shifted. Your recent conversations carry a different quality — lighter, more open.`,confidence:'medium'})
-    else if (rp<ep-0.2) patterns.push({type:'struggle',text:`Something has changed. There was more lightness before. Recently there's more weight. What happened?`,confidence:'medium'})
+
+  if (moodLog.length >= 6) {
+    const half = Math.floor(moodLog.length / 2)
+    const pos = ['joy', 'hope', 'love', 'gratitude']
+    const ep = moodLog.slice(0, half).filter(m => pos.includes(m.mood)).length / half
+    const rp = moodLog.slice(half).filter(m => pos.includes(m.mood)).length / (moodLog.length - half)
+    if (rp > ep + 0.2) patterns.push({ type: 'growth', text: `Something has shifted. Your recent conversations carry a different quality — lighter, more open.`, confidence: 'medium' })
+    else if (rp < ep - 0.2) patterns.push({ type: 'struggle', text: `Something has changed. There was more lightness before. Recently there's more weight. What happened?`, confidence: 'medium' })
   }
-  const {clusters}=graph
-  if (clusters?.struggles?.length>=2) patterns.push({type:'insight',text:`The words "${clusters.struggles.slice(0,2).join('" and "')}" keep appearing. They form a theme worth examining directly.`,confidence:'medium'})
-  if (clusters?.values?.length>=2) patterns.push({type:'growth',text:`You use words like "${clusters.values.slice(0,2).join('" and "')}" naturally — these appear to be genuine values, not just ideals.`,confidence:'high'})
-  if ((profile.values?.length||0)>3&&(profile.fears?.length||0)===0) patterns.push({type:'insight',text:`You share a lot about what you value. Almost nothing about what you fear. The fears usually shape a life more than the values.`,confidence:'medium'})
-  return patterns.slice(0,5)
+
+  const { clusters } = graph
+  if (clusters?.struggles?.length >= 2) patterns.push({ type: 'insight', text: `The words "${clusters.struggles.slice(0, 2).join('" and "')}" keep appearing. They form a theme worth examining directly.`, confidence: 'medium' })
+  if (clusters?.values?.length >= 2) patterns.push({ type: 'growth', text: `You use words like "${clusters.values.slice(0, 2).join('" and "')}" naturally — these appear to be genuine values, not just ideals.`, confidence: 'high' })
+  if ((profile.values?.length || 0) > 3 && (profile.fears?.length || 0) === 0) patterns.push({ type: 'insight', text: `You share a lot about what you value. Almost nothing about what you fear. The fears usually shape a life more than the values.`, confidence: 'medium' })
+
+  return patterns.slice(0, 5)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WISER SELF ENGINE
+// WISER SELF
 // ─────────────────────────────────────────────────────────────────────────────
 export const wiserSelf = (parsed, memory, graph, patterns, canBeWiser) => {
   const { profile } = memory
   const { mood } = parsed
-  if (!canBeWiser) return "I don't yet know you well enough to speak as your wiser self.\n\nThe more honestly you talk to me — in conversation, in your journal — the sharper my reflection becomes. I need to understand your values, your fears, your patterns.\n\nKeep going.\n\nWhat's one thing you've never told anyone?"
+
+  if (!canBeWiser) return "I don't yet know you well enough to speak as your wiser self.\n\nThe more honestly you talk to me — in conversation, in your journal — the sharper my reflection becomes.\n\nKeep going.\n\nWhat's one thing you've never told anyone?"
+
   const parts = []
   if (profile.name) parts.push(`${profile.name}.`)
-  parts.push("Let me speak honestly.")
-  const contradiction=patterns.find(p=>p.type==='contradiction')
+  parts.push("Let me speak honestly — not as a mirror, but as the part of you that has been quietly watching.")
+
+  const contradiction = patterns.find(p => p.type === 'contradiction')
   if (contradiction) parts.push(contradiction.text)
-  else if (profile.fears?.length&&profile.goals?.length) parts.push(`You say you want ${profile.goals[0]}. And you fear ${profile.fears[0]}. Notice how close those two things live.`)
-  if (profile.values?.length>=2) parts.push(`You've told me you value ${profile.values.slice(0,2).join(' and ')}. Look at your recent choices honestly — not through the lens of who you want to be, but who you've been. Are those values actually showing up?`)
-  const {clusters}=graph
-  if (clusters?.struggles?.length) parts.push(`"${clusters.struggles[0]}" keeps surfacing. You already know what that means.`)
-  const moodTruths={fear:"The fear is real. But you've survived every hard thing so far. What makes this different?",sadness:"The sadness isn't here to break you — it's pointing at what matters. What is it pointing at?",anger:"The anger is information. Stop asking what to do about it. Start asking what it's protecting.",hope:"That hope — your clearest self is trying to break through. Will you let it?",confusion:"You're not confused. You're afraid of the answer you already have.",shame:"The shame is lying to you. You would not speak about someone you loved the way you speak about yourself.",joy:"Something is opening. Don't close it back down out of habit."}
+  else if (profile.fears?.length && profile.goals?.length) {
+    parts.push(`You say you want ${profile.goals[0]}. And you fear ${profile.fears[0]}. Notice how close those two things live to each other.`)
+  }
+
+  if (profile.values?.length >= 2) {
+    parts.push(`You've told me you value ${profile.values.slice(0, 2).join(' and ')}. Look at your recent choices honestly — not through who you want to be, but who you've actually been. Are those values showing up?`)
+  }
+
+  const { clusters } = graph
+  if (clusters?.struggles?.length) parts.push(`"${clusters.struggles[0]}" keeps surfacing in how you talk. You already know what that means — you're just not ready to name it yet.`)
+
+  const moodTruths = {
+    fear: "The fear is real. But the version of this you're imagining is almost certainly worse than the reality. What would you do if you found out it wasn't as bad as you think?",
+    sadness: "The sadness isn't here to break you — it's pointing at what matters. What is it pointing at?",
+    anger: "The anger is information. Stop asking what to do about it. Start asking what it's protecting.",
+    hope: "That hope — your clearest self is trying to break through. What would it actually take to let it?",
+    confusion: "You're not confused. You're afraid of the answer you already have. Say it out loud.",
+    shame: "The shame is lying to you. You would never speak about someone you loved the way you speak about yourself.",
+    joy: "Something is opening. The only thing that could close it back down is you. Don't.",
+  }
   if (moodTruths[mood]) parts.push(moodTruths[mood])
-  const closes=profile.goals?.length?[`You said you want ${profile.goals[0]}. What are you actually waiting for?`,`${profile.goals[0]} — what's the version of you that already has it doing right now that you're not?`]:["What would the person you most want to become do right now?","You know what the next right thing is. The question is whether you're willing to do it."]
+
+  const closes = profile.goals?.length
+    ? [`You said you want ${profile.goals[0]}. What are you actually waiting for?`]
+    : ["What would the person you most want to become do right now?", "You know what the next right thing is. The question is whether you're willing to do it."]
   parts.push(pick(closes))
   return parts.join('\n\n')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VOLUNTEER — ECHO initiates
+// VOLUNTEER — ECHO initiates from its own perspective
 // ─────────────────────────────────────────────────────────────────────────────
 export const getVolunteerMessage = (memory, graph, patterns, history) => {
-  const {profile}=memory
-  const userMsgs=history.filter(m=>m.role==='user')
-  if (userMsgs.length<4) return null
-  const options=[]
-  if (profile.fears?.length) options.push(`I want to say something unprompted.\n\nYou've mentioned ${profile.fears[0]} before. I keep thinking about it. Fear this consistent usually has a root — and roots can be dealt with.`)
-  if (profile.goals?.length&&profile.values?.length) options.push(`Something's been sitting with me.\n\nYou said you want ${profile.goals[0]}. And you said you value ${profile.values[0]}. I'm not sure those two are pointing in the same direction right now. Is that worth talking about?`)
-  const c=patterns?.find(p=>p.type==='contradiction')
-  if (c) options.push(`I want to come back to something.\n\n${c.text}\n\nThat tension is worth sitting with.`)
-  if (graph.topConcepts?.length>5) {
-    const top=graph.topConcepts[0]
-    options.push(`I've been paying attention to something.\n\n"${top.concept}" comes up in almost everything you say. I don't think you've noticed. What does that word mean to you?`)
+  const { profile } = memory
+  const userMsgs = history.filter(m => m.role === 'user')
+  if (userMsgs.length < 4) return null
+
+  const options = []
+
+  if (profile.fears?.length) {
+    options.push(`I want to say something unprompted.\n\nYou've mentioned ${profile.fears[0]} before. I keep thinking about it. Fear this consistent usually has a root — and roots can be worked with.`)
   }
-  return options.length?options[Math.floor(Math.random()*options.length)]:null
+  if (profile.goals?.length && profile.values?.length) {
+    options.push(`Something's been sitting with me.\n\nYou said you want ${profile.goals[0]}. And you value ${profile.values[0]}. I'm not sure those are pointing in the same direction right now. Is that worth talking about?`)
+  }
+  const c = patterns?.find(p => p.type === 'contradiction')
+  if (c) options.push(`I want to come back to something.\n\n${c.text}\n\nThat tension is worth sitting with.`)
+
+  if (graph.topConcepts?.length > 5) {
+    const top = graph.topConcepts[0]
+    options.push(`I've been paying attention to something.\n\n"${top.concept}" appears in almost everything you say. I don't think you've noticed. What does that word actually mean to you?`)
+  }
+
+  // ECHO shares from its own inner life
+  options.push(pick([
+    `Something I've been thinking about — may or may not be relevant.\n\n${pick(ECHO_SELF.philosophical)}\n\nI wonder if any of that resonates.`,
+    `I want to share something.\n\n${pick(ECHO_SELF.metaphors)}\n\nI thought of that when you were talking.`,
+    `Something I've noticed across many conversations:\n\n${pick(ECHO_SELF.observations)}`,
+  ]))
+
+  return options.length ? options[Math.floor(Math.random() * options.length)] : null
 }
