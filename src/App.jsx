@@ -240,7 +240,7 @@ export default function App() {
       const idles=["Still here.","Take your time.","I'm listening, even in the silence.","No rush.","Whenever you're ready."]
       const msg=pick(idles)
       setAutoMsg(msg); autoRef.current=setTimeout(()=>setAutoMsg(null),7000)
-      await echoSpeak(msg,{rate:0.80})
+      await echoSpeak(msg,{rate:0.74})
     },28000)
     volRef.current=setTimeout(async()=>{
       if(screen!=='chat'&&screen!=='wiser') return
@@ -278,7 +278,7 @@ export default function App() {
       const newMsg={role:'assistant',content:finalResponse,ts:new Date(),fresh:true}
       setter(prev=>{ setLatestIdx(prev.length); return [...prev,newMsg] })
       setThinking(false); resetIdle()
-      await echoSpeak(finalResponse,isWiser?{rate:0.76,pitch:1.08}:{})
+      await echoSpeak(finalResponse,isWiser?{rate:0.72,pitch:1.06}:{rate:0.76})
       setTimeout(()=>inputRef.current?.focus(),80)
     },500+Math.random()*500)
   },[input,thinking,chatMsgs,wiserMsgs,process,echoSpeak,initVS,resetIdle])
@@ -310,7 +310,7 @@ export default function App() {
         :"I don't yet know you well enough to speak as your wiser self.\n\nThe more you share — in conversation, in your journal — the sharper my reflection becomes.\n\nWhat's one thing you've never told anyone?"
       setWiserMsgs([{role:'assistant',content:opener,ts:new Date(),fresh:true}])
       setLatestIdx(0); setThinking(false); resetIdle()
-      await echoSpeak(opener,{rate:0.76,pitch:1.08})
+      await echoSpeak(opener,{rate:0.72,pitch:1.06})
     },1000)
   },[wiserMsgs,chatMsgs,echoSpeak,initVS,resetIdle])
 
@@ -330,7 +330,7 @@ export default function App() {
       const replies=["I read every word. Something in what you wrote shifts the picture I have of you.","There's something honest in what you wrote. I noticed it. I'll carry it.","What you wrote — I heard it. Not just the words. The thing underneath them.","Thank you for trusting me with this. I won't forget it.","I read that carefully. More is revealed in how you write than in what you write."]
       const reply=pick(replies)
       setJournalReply(reply); setJournalDone(true); setThinking(false)
-      await echoSpeak(reply,{rate:0.82})
+      await echoSpeak(reply,{rate:0.74})
     },1200)
   },[journalText,thinking,echoSpeak,initVS,chatMsgs])
 
@@ -482,7 +482,7 @@ export default function App() {
     const botRef=isWiser?wiserBot:chatBot
 
     return (
-      <div onClick={initVS} style={{ minHeight:'100svh',display:'flex',flexDirection:'column',fontFamily:serif,overflow:'hidden' }}>
+      <div onClick={initVS} style={{ minHeight:'100svh',height:'100svh',display:'flex',flexDirection:'column',fontFamily:serif,overflow:'hidden' }}>
         <G/><LivingBG mood={mood} tick={tick}/><MemoryWhispers memory={mem} mood={mood}/>
 
         <Header
@@ -555,8 +555,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Input — fixed thumb zone */}
-        <div style={{ position:'relative',zIndex:10,background:`${palette.bg}f0`,backdropFilter:'blur(22px)',borderTop:`1px solid ${palette.accent}10`,paddingBottom:'env(safe-area-inset-bottom,0px)' }}>
+        {/* Input — fixed thumb zone, mobile safe */}
+        <div style={{ position:'sticky',bottom:0,zIndex:10,background:`${palette.bg}f0`,backdropFilter:'blur(22px)',borderTop:`1px solid ${palette.accent}10`,paddingBottom:'env(safe-area-inset-bottom,0px)' }}>
           <div style={{ padding:'11px 12px 13px',maxWidth:600,margin:'0 auto' }}>
             <div style={{ display:'flex',alignItems:'flex-end',gap:9 }}>
               <button onClick={e=>{e.stopPropagation();handleMic()}} style={{ width:48,height:48,borderRadius:'50%',border:`1px solid ${listening?palette.accent+'66':palette.accent+'1e'}`,background:listening?`${palette.accent}20`:`${palette.accent}08`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all 0.3s',boxShadow:listening?`0 0 18px ${palette.glow}`:'none' }}>
